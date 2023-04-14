@@ -24,13 +24,29 @@ provider "azurerm" {
   features {}
 }
 
+# provider "kubernetes" {
+#   config_path = "~/.kube/config"
+# }
+
+# provider "helm" {
+#   kubernetes {
+#     config_path = "~/.kube/config"
+#   }
+# }
+
 provider "kubernetes" {
-  config_path = "~/.kube/config"
+  host                   = azurerm_kubernetes_cluster.this.kube_config.0.host
+  client_certificate     = base64decode(azurerm_kubernetes_cluster.this.kube_config.0.client_certificate)
+  client_key             = base64decode(azurerm_kubernetes_cluster.this.kube_config.0.client_key)
+  cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.this.kube_config.0.cluster_ca_certificate)
 }
 
 provider "helm" {
   kubernetes {
-    config_path = "~/.kube/config"
+    host                   = azurerm_kubernetes_cluster.this.kube_config.0.host
+    client_certificate     = base64decode(azurerm_kubernetes_cluster.this.kube_config.0.client_certificate)
+    client_key             = base64decode(azurerm_kubernetes_cluster.this.kube_config.0.client_key)
+    cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.this.kube_config.0.cluster_ca_certificate)
   }
 }
 
@@ -84,14 +100,20 @@ resource "local_file" "kubeconfig" {
   filename = "~/.kube/config"
 }
 
+resource "kubernetes_namespace" "ingress_basic" {
+  metadata {
+    name = "ingress-basic"
+  }
+}
+
 resource "helm_release" "nginx_ingress" {
-  depends_on = [local_file.kubeconfig]
+  depends_on = [local_file.kubeconfig, kubernetes_namespace.ingress_basic]
 
   name       = "ingress-nginx"
   repository = "https://kubernetes.github.io/ingress-nginx"
   chart      = "ingress-nginx"
   version    = var.helm_nginx_ingress_version
-  namespace  = "ingress-basic"
+  namespace  = kubernetes_namespace.ingress_basic.metadata[0].name
 
   set {
     name  = "controller.service.type"
@@ -99,6 +121,7 @@ resource "helm_release" "nginx_ingress" {
   }
 }
 
+/* outputs */
 output "aks_cluster_name" {
   value = azurerm_kubernetes_cluster.this.name
 }
@@ -109,10 +132,12 @@ output "aks_kube_config" {
 }
 
 output "aks_cluster_ca_certificate" {
+  sensitive = true
   value = data.azurerm_kubernetes_cluster.aks.kube_config.0.cluster_ca_certificate
 }
 
 output "aks_host" {
+  sensitive = true
   value = data.azurerm_kubernetes_cluster.aks.kube_config.0.host
 }
 
