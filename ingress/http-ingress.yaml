@@ -4,6 +4,7 @@ metadata:
   name: demo-ingress
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
   rules:
@@ -11,6 +12,13 @@ spec:
         paths:
           - path: /
             pathType: Prefix
+            backend:
+              service:
+                name: pf-hello-world
+                port:
+                  number: 3000
+          - path: /nginx(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: web
